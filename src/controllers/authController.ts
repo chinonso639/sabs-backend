@@ -19,7 +19,9 @@ const signToken = (id: string, extra: object = {}): string => {
 const cookieOptions = (days = 7) => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: (process.env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
+  sameSite: (process.env.NODE_ENV === "production" ? "none" : "lax") as
+    | "none"
+    | "lax",
   maxAge: days * 24 * 60 * 60 * 1000,
   path: "/",
 });
@@ -56,15 +58,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     emailVerificationExpiry: expiry,
   });
 
-  try {
-    await sendVerificationEmail(
-      user.email,
-      verificationToken,
-      user.displayName,
-    );
-  } catch (e) {
-    console.error("Failed to send verification email:", e);
-  }
+  // Send email asynchronously (fire-and-forget) to avoid blocking response
+  sendVerificationEmail(user.email, verificationToken, user.displayName).catch(
+    (e) => console.error("Failed to send verification email:", e),
+  );
 
   const token = signToken(user._id.toString());
   res.cookie(JWT_COOKIE_NAME, token, cookieOptions(7));

@@ -17,6 +17,10 @@ import { getB2Client, getB2Bucket } from "./config/b2";
 
 const app = express();
 
+// ── Trust Proxy ────────────────────────────────────────────────────────────────
+// Required for Railway/cloud deployments to correctly read client IP from X-Forwarded-For
+app.set("trust proxy", 1);
+
 // ── Security Middleware ────────────────────────────────────────────────────────
 app.use(
   helmet({

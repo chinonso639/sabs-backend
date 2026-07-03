@@ -86,15 +86,15 @@ app.get("/api/media/*", async (req: Request, res: Response) => {
     if (s3Res.ContentType) res.setHeader("Content-Type", s3Res.ContentType);
     if (s3Res.ContentLength)
       res.setHeader("Content-Length", String(s3Res.ContentLength));
-    
+
     // Aggressive caching headers
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    
+
     // ETag for browser caching
     if (s3Res.ETag) {
       res.setHeader("ETag", s3Res.ETag);
     }
-    
+
     // Check if client has cached version
     if (req.headers["if-none-match"] === s3Res.ETag) {
       res.status(304).end();

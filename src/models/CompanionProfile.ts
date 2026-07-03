@@ -81,7 +81,9 @@ companionProfileSchema.index({
   shortBio: "text",
   location: "text",
 });
-companionProfileSchema.index({ isActive: 1, isEnabled: 1 });
+// Compound index for common query pattern (most queries filter by these)
+companionProfileSchema.index({ isActive: 1, isEnabled: 1, createdAt: -1 });
+companionProfileSchema.index({ isActive: 1, isEnabled: 1, viewCount: -1 });
 companionProfileSchema.index({ location: 1 });
 companionProfileSchema.index({ age: 1 });
 

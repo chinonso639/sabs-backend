@@ -7,6 +7,11 @@ export const connectDB = async (): Promise<void> => {
 
   await mongoose.connect(uri, {
     dbName: "matchme",
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    family: 4,
   });
 
   console.log(`✅ MongoDB connected: ${mongoose.connection.host}`);

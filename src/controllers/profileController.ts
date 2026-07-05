@@ -67,11 +67,31 @@ export const createMyProfile = async (
     profileImage,
     profileImageKey,
     isEnabled: true, // auto-approved on creation
-    profileCompleteness: 40,
+    profileCompleteness: calculateCompleteness({
+      fullBio: fullBio ?? "",
+      interests: interests
+        ? interests
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+        : [],
+    }),
   });
 
   res.status(201).json({ success: true, data: { profile } });
 };
+
+// Helper function to calculate profile completeness
+function calculateCompleteness(data: {
+  fullBio: string;
+  interests: string[];
+}): number {
+  let score = 40; // base (profile image + basic info)
+  if (data.fullBio && data.fullBio.length > 50) score += 20;
+  if (data.interests && data.interests.length > 2) score += 15;
+  // Gallery will add +15, cover will add +10 later
+  return Math.min(100, score);
+}
 
 // ── Upload Gallery (creator - own profile) ────────────────────────────────────
 export const uploadMyGallery = async (

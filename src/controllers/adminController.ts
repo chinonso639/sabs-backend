@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { User } from "../models/User";
+import { Admin } from "../models/Admin";
 import { CompanionProfile } from "../models/CompanionProfile";
 import { Subscription } from "../models/Subscription";
 import { PaymentReceipt } from "../models/PaymentReceipt";
@@ -112,5 +113,33 @@ export const toggleUserStatus = async (
   res.json({
     success: true,
     message: `User ${user.isActive ? "activated" : "deactivated"}.`,
+  });
+};
+
+// ── Create Admin ───────────────────────────────────────────────────────────────
+export const createAdmin = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { name, email, password } = req.body;
+
+  // Check if admin with email already exists
+  const existingAdmin = await Admin.findOne({ email: email.toLowerCase() });
+  if (existingAdmin) {
+    throw createError("An admin with this email already exists.", 409);
+  }
+
+  // Create new admin
+  const admin = await Admin.create({
+    name,
+    email: email.toLowerCase(),
+    password,
+    isActive: true,
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "Admin created successfully.",
+    data: { admin },
   });
 };

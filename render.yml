@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: express-api
+    runtime: node
+    plan: free # Change to starter, standard, etc. if needed
+    region: oregon # Optional: oregon, frankfurt, singapore, etc.
+    branch: main
+
+    buildCommand: npm install
+    startCommand: npm start
+
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000

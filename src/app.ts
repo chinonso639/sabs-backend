@@ -30,10 +30,29 @@ app.use(
 
 app.use(
   cors({
-    origin: (process.env.FRONTEND_URL || "http://localhost:3000").replace(
-      /\/$/,
-      "",
-    ),
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+
+      // Get base frontend URL from env
+      const baseUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(
+        /\/$/,
+        "",
+      );
+
+      // Allow both with and without www subdomain
+      const allowedOrigins = [
+        baseUrl,
+        baseUrl.replace("https://", "https://www."),
+        baseUrl.replace("http://", "http://www."),
+      ];
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],

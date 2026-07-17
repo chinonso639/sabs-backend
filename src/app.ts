@@ -83,6 +83,21 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+// ── Handle OPTIONS requests for all routes (CORS preflight) ───────────────────────
+app.options("*", (_req, res) => {
+  res.header("Access-Control-Allow-Origin", process.env.FRONTEND_URL || "*");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With",
+  );
+  res.status(204).end();
+});
+
 // ── Routes ─────────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/profiles", profileRoutes);

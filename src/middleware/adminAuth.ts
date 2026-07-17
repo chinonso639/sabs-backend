@@ -29,7 +29,12 @@ export const adminProtect = async (
   }
 
   const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("JWT_SECRET not configured");
+  if (!secret) {
+    res
+      .status(500)
+      .json({ success: false, message: "Server configuration error." });
+    return;
+  }
 
   let decoded: AdminJwtPayload;
   try {
@@ -48,12 +53,10 @@ export const adminProtect = async (
 
   const admin = await Admin.findById(decoded.id);
   if (!admin || !admin.isActive) {
-    res
-      .status(401)
-      .json({
-        success: false,
-        message: "Admin account not found or deactivated.",
-      });
+    res.status(401).json({
+      success: false,
+      message: "Admin account not found or deactivated.",
+    });
     return;
   }
 

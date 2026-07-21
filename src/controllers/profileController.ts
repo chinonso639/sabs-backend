@@ -2,8 +2,23 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { CompanionProfile } from "../models/CompanionProfile";
 import { Subscription } from "../models/Subscription";
+import { PaymentReceipt } from "../models/PaymentReceipt";
 import { uploadToB2, deleteFromB2 } from "../services/b2Service";
 import { createError } from "../middleware/errorHandler";
+import {
+  BOOST_PROFILE_PRICE,
+  BOOST_PROFILE_DURATION,
+  BANK_DETAILS,
+} from "../config/constants";
+
+// Helper to safely get string id from params
+function getIdParam(
+  params: Record<string, string | string[] | undefined>,
+): string {
+  const id = params.id;
+  if (Array.isArray(id)) return id[0];
+  return id ?? "";
+}
 
 // ── Get My Profile (creator) ──────────────────────────────────────────────────
 export const getMyProfile = async (
@@ -175,10 +190,16 @@ export const getProfiles = async (
   const limitNum = Math.min(50, Math.max(1, parseInt(limit as string)));
   const skip = (pageNum - 1) * limitNum;
 
+  // For default sort, boosted profiles should appear first
+  const sortQuery =
+    sort === "createdAt"
+      ? { isBoosted: -1, createdAt: -1 }
+      : (sortMap[sort as string] ?? { createdAt: -1 });
+
   const [profiles, total] = await Promise.all([
     CompanionProfile.find(filter)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .sort((sortMap[sort as string] ?? { createdAt: -1 }) as any)
+      .sort(sortQuery as any)
       .skip(skip)
       .limit(limitNum)
       .select("-whatsappNumber -profileImageKey -coverImageKey -gallery.key"),
@@ -204,7 +225,7 @@ export const getProfile = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { id } = req.params;
+  const id = getIdParam(req.params);
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw createError("Invalid profile ID.", 400);
@@ -331,7 +352,7 @@ export const updateProfile = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { id } = req.params;
+  const id = getIdParam(req.params);
   if (!mongoose.Types.ObjectId.isValid(id))
     throw createError("Invalid profile ID.", 400);
 
@@ -416,7 +437,7 @@ export const deleteProfile = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { id } = req.params;
+  const id = getIdParam(req.params);
   if (!mongoose.Types.ObjectId.isValid(id))
     throw createError("Invalid profile ID.", 400);
 
@@ -443,7 +464,7 @@ export const uploadGalleryMedia = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { id } = req.params;
+  const id = getIdParam(req.params);
   if (!mongoose.Types.ObjectId.isValid(id))
     throw createError("Invalid profile ID.", 400);
 
@@ -482,10 +503,11 @@ export const deleteGalleryItem = async (
   res: Response,
 ): Promise<void> => {
   const { id, itemId } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id))
+  const profileId = getIdParam({ id });
+  if (!mongoose.Types.ObjectId.isValid(profileId))
     throw createError("Invalid profile ID.", 400);
 
-  const profile = await CompanionProfile.findById(id);
+  const profile = await CompanionProfile.findById(profileId);
   if (!profile) throw createError("Profile not found.", 404);
 
   const item = profile.gallery.find(
@@ -500,4 +522,216 @@ export const deleteGalleryItem = async (
   await profile.save();
 
   res.json({ success: true, message: "Gallery item removed." });
+};
+
+// ── Boost Profile: Get boost status ─────────────────────────────────────────────
+export const getBoostStatus = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const user = req.user!;
+  const profile = await CompanionProfile.findOne({ createdBy: user._id });
+
+  if (!profile) {
+    throw createError("Profile not found. Create your profile first.", 404);
+  }
+
+  const now = new Date();
+  const isBoosted =
+    profile.isBoosted && profile.boostEndDate && profile.boostEndDate > now;
+
+  res.json({
+    success: true,
+    data: {
+      isBoosted: !!isBoosted,
+      boostEndDate: profile.boostEndDate,
+      price: BOOST_PROFILE_PRICE,
+    },
+  });
+};
+
+// ── Boost Profile: Create boost request ───────────────────────────────────────────
+export const createBoostRequest = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const user = req.user!;
+  const profile = await CompanionProfile.findOne({ createdBy: user._id });
+
+  if (!profile) {
+    throw createError("Profile not found. Create your profile first.", 404);
+  }
+
+  // Check if already boosted
+  const now = new Date();
+  if (profile.isBoosted && profile.boostEndDate && profile.boostEndDate > now) {
+    throw createError("Profile is already boosted.", 400);
+  }
+
+  // Check for existing pending boost receipt
+  if (profile.boostPaymentReceipt) {
+    const existingReceipt = await PaymentReceipt.findById(
+      profile.boostPaymentReceipt,
+    );
+    if (existingReceipt && existingReceipt.status === "pending") {
+      throw createError("Boost payment already pending approval.", 400);
+    }
+  }
+
+  res.json({
+    success: true,
+    data: {
+      price: BOOST_PROFILE_PRICE,
+      bankDetails: BANK_DETAILS,
+    },
+  });
+};
+
+// ── Boost Profile: Upload boost receipt ───────────────────────────────────────────
+export const uploadBoostReceipt = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const user = req.user!;
+  const file = req.file;
+
+  if (!file) throw createError("Payment receipt image is required.", 400);
+
+  const profile = await CompanionProfile.findOne({ createdBy: user._id });
+  if (!profile) throw createError("Profile not found.", 404);
+
+  // Check for existing pending receipt
+  if (profile.boostPaymentReceipt) {
+    const existingReceipt = await PaymentReceipt.findById(
+      profile.boostPaymentReceipt,
+    );
+    if (existingReceipt && existingReceipt.status === "pending") {
+      throw createError("Boost payment already pending approval.", 400);
+    }
+  }
+
+  const { url, key } = await uploadToB2(
+    file.buffer,
+    file.mimetype,
+    "boost-receipts",
+  );
+
+  const receipt = await PaymentReceipt.create({
+    user: user._id,
+    subscription: null,
+    planId: "boost",
+    amount: BOOST_PROFILE_PRICE,
+    imageUrl: url,
+    imageKey: key,
+  });
+
+  profile.boostPaymentReceipt = receipt._id as mongoose.Types.ObjectId;
+  await profile.save();
+
+  res.status(201).json({
+    success: true,
+    message: "Boost payment receipt submitted for review.",
+    data: { receipt },
+  });
+};
+
+// ── Admin: Get all boost requests ─────────────────────────────────────────────────
+export const adminGetBoostRequests = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const { status = "pending", page = 1, limit = 20 } = req.query;
+
+  const filter: mongoose.FilterQuery<typeof PaymentReceipt> = {
+    planId: "boost",
+  };
+  if (status) filter.status = status;
+
+  const pageNum = Math.max(1, parseInt(page as string));
+  const limitNum = Math.min(100, parseInt(limit as string));
+
+  const [receipts, total] = await Promise.all([
+    PaymentReceipt.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .populate("user", "displayName email")
+      .populate({
+        path: "profile",
+        populate: { path: "createdBy", select: "displayName" },
+      }),
+    PaymentReceipt.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    data: {
+      receipts,
+      pagination: { total, page: pageNum, limit: limitNum },
+    },
+  });
+};
+
+// ── Admin: Approve boost request ───────────────────────────────────────────────────
+export const adminApproveBoost = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const id = getIdParam(req.params);
+  const admin = req.admin!;
+
+  if (!mongoose.Types.ObjectId.isValid(id))
+    throw createError("Invalid receipt ID.", 400);
+
+  const receipt = await PaymentReceipt.findById(id);
+  if (!receipt) throw createError("Receipt not found.", 404);
+
+  const profile = await CompanionProfile.findOne({ createdBy: receipt.user });
+  if (!profile) throw createError("Profile not found.", 404);
+
+  // Set boost
+  const now = new Date();
+  const boostEndDate = new Date(
+    now.getTime() + BOOST_PROFILE_DURATION * 24 * 60 * 60 * 1000,
+  );
+
+  profile.isBoosted = true;
+  profile.boostEndDate = boostEndDate;
+  await profile.save();
+
+  // Approve receipt
+  receipt.status = "approved";
+  receipt.reviewedBy = admin._id as unknown as mongoose.Types.ObjectId;
+  receipt.reviewedAt = now;
+  await receipt.save();
+
+  res.json({
+    success: true,
+    message: "Boost approved. Profile will be featured for 30 days.",
+    data: { profile, receipt },
+  });
+};
+
+// ── Admin: Reject boost request ───────────────────────────────────────────────────
+export const adminRejectBoost = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const id = getIdParam(req.params);
+  const { reason } = req.body;
+  const admin = req.admin!;
+
+  if (!mongoose.Types.ObjectId.isValid(id))
+    throw createError("Invalid receipt ID.", 400);
+
+  const receipt = await PaymentReceipt.findById(id);
+  if (!receipt) throw createError("Receipt not found.", 404);
+
+  receipt.status = "rejected";
+  receipt.rejectionReason = reason || "Payment could not be verified.";
+  receipt.reviewedBy = admin._id as unknown as mongoose.Types.ObjectId;
+  receipt.reviewedAt = new Date();
+  await receipt.save();
+
+  res.json({ success: true, message: "Boost request rejected." });
 };

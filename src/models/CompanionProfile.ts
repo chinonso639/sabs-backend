@@ -30,6 +30,9 @@ export interface ICompanionProfile extends Document {
   isVerified: boolean;
   isActive: boolean;
   isEnabled: boolean;
+  isBoosted: boolean;
+  boostEndDate: Date | null;
+  boostPaymentReceipt?: mongoose.Types.ObjectId | null;
   profileCompleteness: number;
   viewCount: number;
   badges: string[];
@@ -68,6 +71,13 @@ const companionProfileSchema = new Schema<ICompanionProfile>(
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isEnabled: { type: Boolean, default: true },
+    isBoosted: { type: Boolean, default: false },
+    boostEndDate: { type: Date, default: null },
+    boostPaymentReceipt: {
+      type: Schema.Types.ObjectId,
+      ref: "PaymentReceipt",
+      default: null,
+    },
     profileCompleteness: { type: Number, default: 0 },
     viewCount: { type: Number, default: 0 },
     badges: [{ type: String }],

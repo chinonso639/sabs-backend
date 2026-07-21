@@ -22,7 +22,7 @@ const paymentReceiptSchema = new Schema<IPaymentReceipt>(
     subscription: {
       type: Schema.Types.ObjectId,
       ref: "Subscription",
-      required: true,
+      default: null,
     },
     planId: { type: String, required: true },
     amount: { type: Number, required: true },

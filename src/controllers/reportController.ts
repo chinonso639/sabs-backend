@@ -4,6 +4,15 @@ import { Report } from "../models/Report";
 import { CompanionProfile } from "../models/CompanionProfile";
 import { createError } from "../middleware/errorHandler";
 
+// Helper to safely get string id from params
+function getIdParam(
+  params: Record<string, string | string[] | undefined>,
+): string {
+  const id = params.id;
+  if (Array.isArray(id)) return id[0];
+  return id ?? "";
+}
+
 // ── Submit Report (user) ──────────────────────────────────────────────────────
 export const submitReport = async (
   req: Request,
@@ -80,7 +89,7 @@ export const adminUpdateReport = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { id } = req.params;
+  const id = getIdParam(req.params);
   const { status, adminNotes } = req.body;
   const admin = req.admin!;
 

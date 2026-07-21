@@ -68,4 +68,11 @@ export const BANK_DETAILS = {
   accountNumber: process.env.BANK_ACCOUNT_NUMBER || "3012345678",
 };
 
+// Boost Profile configuration
+export const BOOST_PROFILE_PRICE = parseInt(
+  process.env.BOOST_PROFILE_PRICE || "3000",
+  10,
+);
+export const BOOST_PROFILE_DURATION = 30; // days
+
 export const PLATFORM_AGE_REQUIREMENT = 18;

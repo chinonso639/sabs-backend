@@ -11,6 +11,15 @@ import {
 } from "../services/emailService";
 import { createError } from "../middleware/errorHandler";
 
+// Helper to safely get string id from params
+function getIdParam(
+  params: Record<string, string | string[] | undefined>,
+): string {
+  const id = params.id;
+  if (Array.isArray(id)) return id[0];
+  return id ?? "";
+}
+
 // ── Get Plans ──────────────────────────────────────────────────────────────────
 export const getPlans = (_req: Request, res: Response): void => {
   res.json({
@@ -173,7 +182,7 @@ export const adminApproveSubscription = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { id } = req.params;
+  const id = getIdParam(req.params);
   const admin = req.admin!;
 
   if (!mongoose.Types.ObjectId.isValid(id))
@@ -227,7 +236,7 @@ export const adminRejectSubscription = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
-  const { id } = req.params;
+  const id = getIdParam(req.params);
   const { reason } = req.body;
   const admin = req.admin!;
 

@@ -11,6 +11,12 @@ import {
   getMyProfile,
   createMyProfile,
   uploadMyGallery,
+  getBoostStatus,
+  createBoostRequest,
+  uploadBoostReceipt,
+  adminGetBoostRequests,
+  adminApproveBoost,
+  adminRejectBoost,
 } from "../controllers/profileController";
 import { optionalAuth, protect } from "../middleware/auth";
 import { adminProtect } from "../middleware/adminAuth";
@@ -80,5 +86,26 @@ router.post(
 );
 
 router.delete("/:id/gallery/:itemId", adminProtect, deleteGalleryItem);
+
+// Boost Profile routes (creator)
+router.get("/boost/status", protect, getBoostStatus);
+router.post("/boost/request", protect, createBoostRequest);
+router.post(
+  "/boost/receipt",
+  protect,
+  uploadMedia.single("receipt"),
+  uploadBoostReceipt,
+);
+
+// Boost Profile routes (admin)
+router.get("/admin/boosts", adminProtect, adminGetBoostRequests);
+router.put("/admin/boosts/:id/approve", adminProtect, adminApproveBoost);
+router.put(
+  "/admin/boosts/:id/reject",
+  adminProtect,
+  [body("reason").optional().trim()],
+  validate,
+  adminRejectBoost,
+);
 
 export default router;

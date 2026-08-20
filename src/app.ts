@@ -12,8 +12,8 @@ import subscriptionRoutes from "./routes/subscriptions";
 import adminRoutes from "./routes/admin";
 import reportRoutes from "./routes/reports";
 import { errorHandler, notFound } from "./middleware/errorHandler";
-import { generalLimiter } from "./middleware/rateLimiter";
-import { getB2Client, getB2Bucket } from "./config/b2";
+import { generalLimiter, mediaLimiter } from "./middleware/rateLimiter";
+import { getB2Client, getB2Bucket, getB2PublicUrlBase } from "./config/b2";
 
 const app = express();
 
@@ -71,44 +71,13 @@ if (process.env.NODE_ENV !== "test") {
   app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 }
 
-// ── Rate Limiting ──────────────────────────────────────────────────────────────
-app.use("/api", generalLimiter);
-
-// ── Health Check ───────────────────────────────────────────────────────────────
-app.get("/api/health", (_req, res) => {
-  res.json({
-    success: true,
-    message: "MatchMe API is running",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// ── Handle OPTIONS requests for all routes (CORS preflight) ───────────────────────
-app.options("*", (_req, res) => {
-  res.header("Access-Control-Allow-Origin", process.env.FRONTEND_URL || "*");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With",
-  );
-  res.status(204).end();
-});
-
-// ── Routes ─────────────────────────────────────────────────────────────────────
-app.use("/api/auth", authRoutes);
-app.use("/api/profiles", profileRoutes);
-app.use("/api/subscriptions", subscriptionRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/reports", reportRoutes);
-
 // ── B2 Media Proxy ─────────────────────────────────────────────────────────────
-// Serves private B2 files through the backend so the bucket can stay private.
+// Serves B2 files through the backend. Placed BEFORE the general rate limiter
+// and given a dedicated, generous limiter so that image-heavy pages (which
+// trigger many concurrent requests from browsers / Next.js image optimizer)
+// don't exhaust the 100 req/15min general limit and return 429.
 // URL format: GET /api/media/profiles/image.webp  or  /api/media/gallery/video.mp4
-app.get("/api/media/*", async (req: Request, res: Response) => {
+app.get("/api/media/*", mediaLimiter, async (req: Request, res: Response) => {
   const key = (req.params as Record<string, string>)[0];
   if (!key) {
     res.status(400).json({ error: "Missing file key" });
@@ -145,6 +114,41 @@ app.get("/api/media/*", async (req: Request, res: Response) => {
     res.status(404).json({ error: "Media not found" });
   }
 });
+
+// ── Rate Limiting ──────────────────────────────────────────────────────────────
+app.use("/api", generalLimiter);
+
+// ── Health Check ───────────────────────────────────────────────────────────────
+app.get("/api/health", (_req, res) => {
+  res.json({
+    success: true,
+    message: "MatchMe API is running",
+    timestamp: new Date().toISOString(),
+    b2PublicBaseUrl: getB2PublicUrlBase() || null,
+  });
+});
+
+// ── Handle OPTIONS requests for all routes (CORS preflight) ───────────────────────
+app.options("*", (_req, res) => {
+  res.header("Access-Control-Allow-Origin", process.env.FRONTEND_URL || "*");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With",
+  );
+  res.status(204).end();
+});
+
+// ── Routes ─────────────────────────────────────────────────────────────────────
+app.use("/api/auth", authRoutes);
+app.use("/api/profiles", profileRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/reports", reportRoutes);
 
 // ── 404 & Error Handler ────────────────────────────────────────────────────────
 app.use(notFound);

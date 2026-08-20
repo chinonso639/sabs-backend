@@ -32,3 +32,12 @@ export const strictLimiter = createLimiter(
   5,
   "Rate limit exceeded. Please try again in an hour.",
 );
+
+// Media proxy is high-traffic (images/videos fetched by browsers, CDNs,
+// and Next.js image optimizer). Giving it a generous limit prevents 429s
+// on browse pages that load many images at once.
+export const mediaLimiter = createLimiter(
+  60 * 1000, // 1 minute
+  600, // 600 requests/minute
+  "Too many media requests. Please slow down.",
+);

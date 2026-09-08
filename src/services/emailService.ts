@@ -82,7 +82,7 @@ export const sendSubscriptionRejectionEmail = async (
         <p>Hi ${name},</p>
         <p>Unfortunately, your payment receipt could not be verified. Reason: <strong>${reason || "Receipt could not be confirmed."}</strong></p>
         <p>Please re-upload a clear photo of your payment receipt and resubmit.</p>
-        <a href="${process.env.FRONTEND_URL}/payment" style="display:inline-block;padding:12px 24px;background:#e11d48;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
+        <a href="${process.env.FRONTEND_URL}/subscribe" style="display:inline-block;padding:12px 24px;background:#e11d48;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
           Resubmit Receipt
         </a>
         <hr/>

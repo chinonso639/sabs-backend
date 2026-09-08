@@ -78,8 +78,9 @@ router.put(
 
 router.delete("/:id", adminProtect, deleteProfile);
 
-// Enable/disable profile — simple JSON PATCH (no multipart), reliable on all browsers
-router.patch(
+// Enable/disable profile — simple JSON PUT (no multipart), reliable on all browsers.
+// Uses PUT (not PATCH) because the deployed CORS policy allows PUT.
+router.put(
   "/:id/enabled",
   adminProtect,
   [body("isEnabled").isBoolean()],

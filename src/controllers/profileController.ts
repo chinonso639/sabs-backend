@@ -459,6 +459,32 @@ export const deleteProfile = async (
   res.json({ success: true, message: "Profile deleted." });
 };
 
+// ── Toggle Profile Enabled (admin, JSON-only) ─────────────────────────────────
+export const adminSetProfileEnabled = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const id = getIdParam(req.params);
+  const { isEnabled } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id))
+    throw createError("Invalid profile ID.", 400);
+  if (typeof isEnabled !== "boolean")
+    throw createError("isEnabled (boolean) is required.", 400);
+
+  const profile = await CompanionProfile.findById(id);
+  if (!profile) throw createError("Profile not found.", 404);
+
+  profile.isEnabled = isEnabled;
+  await profile.save();
+
+  res.json({
+    success: true,
+    message: `Profile ${isEnabled ? "enabled" : "disabled"}.`,
+    data: { profile },
+  });
+};
+
 // ── Upload Gallery Media (admin) ──────────────────────────────────────────────
 export const uploadGalleryMedia = async (
   req: Request,

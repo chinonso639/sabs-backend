@@ -6,6 +6,7 @@ import {
   createProfile,
   updateProfile,
   deleteProfile,
+  adminSetProfileEnabled,
   uploadGalleryMedia,
   deleteGalleryItem,
   getMyProfile,
@@ -76,6 +77,15 @@ router.put(
 );
 
 router.delete("/:id", adminProtect, deleteProfile);
+
+// Enable/disable profile — simple JSON PATCH (no multipart), reliable on all browsers
+router.patch(
+  "/:id/enabled",
+  adminProtect,
+  [body("isEnabled").isBoolean()],
+  validate,
+  adminSetProfileEnabled,
+);
 
 // Gallery
 router.post(

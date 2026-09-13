@@ -77,42 +77,18 @@ if (process.env.NODE_ENV !== "test") {
 // trigger many concurrent requests from browsers / Next.js image optimizer)
 // don't exhaust the 100 req/15min general limit and return 429.
 // URL format: GET /api/media/profiles/image.webp  or  /api/media/gallery/video.mp4
-app.get("/api/media/*", mediaLimiter, async (req: Request, res: Response) => {
+app.get("/api/media/*", mediaLimiter, (req: Request, res: Response) => {
   const key = (req.params as Record<string, string>)[0];
+
   if (!key) {
     res.status(400).json({ error: "Missing file key" });
     return;
   }
 
-  try {
-    const command = new GetObjectCommand({ Bucket: getB2Bucket(), Key: key });
-    const s3Res = await getB2Client().send(command);
+  // Redirect legacy media URLs to the Cloudflare CDN.
+  const cdnUrl = `https://media.sabiruns.com/${key}`;
 
-    if (s3Res.ContentType) res.setHeader("Content-Type", s3Res.ContentType);
-    if (s3Res.ContentLength)
-      res.setHeader("Content-Length", String(s3Res.ContentLength));
-
-    // Aggressive caching headers
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-
-    // ETag for browser caching
-    if (s3Res.ETag) {
-      res.setHeader("ETag", s3Res.ETag);
-    }
-
-    // Check if client has cached version
-    if (req.headers["if-none-match"] === s3Res.ETag) {
-      res.status(304).end();
-      return;
-    }
-
-    // Stream body to client
-    const { Readable } = await import("stream");
-    const body = s3Res.Body as NodeJS.ReadableStream;
-    Readable.from(body as AsyncIterable<Uint8Array>).pipe(res);
-  } catch {
-    res.status(404).json({ error: "Media not found" });
-  }
+  res.redirect(302, cdnUrl);
 });
 
 // ── Rate Limiting ──────────────────────────────────────────────────────────────

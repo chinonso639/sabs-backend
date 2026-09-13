@@ -13,7 +13,8 @@ export interface UploadResult {
 }
 
 /** Backend-relative proxy URL for a B2 key.  e.g.  /api/media/profiles/xxx.webp */
-export const getMediaProxyUrl = (key: string): string => `/api/media/${key}`;
+export const getMediaProxyUrl = (key: string): string =>
+  `https://media.sabiruns.com/${key}`;
 
 export const uploadToB2 = async (
   buffer: Buffer,

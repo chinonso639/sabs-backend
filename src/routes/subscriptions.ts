@@ -34,7 +34,12 @@ router.post(
   protect,
   uploadLimiter,
   uploadReceiptMiddleware.single("receipt"),
-  [body("subscriptionId").notEmpty()],
+  [
+    body("subscriptionId").notEmpty(),
+    // Base64 JSON path: `image` is a data URI. Required only when no
+    // multipart file is sent; the controller validates presence.
+    body("image").optional().isString(),
+  ],
   validate,
   uploadReceipt,
 );

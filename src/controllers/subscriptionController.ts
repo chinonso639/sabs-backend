@@ -3,7 +3,12 @@ import mongoose from "mongoose";
 import { Subscription } from "../models/Subscription";
 import { PaymentReceipt } from "../models/PaymentReceipt";
 import { User } from "../models/User";
-import { SUBSCRIPTION_PLANS, PlanId, BANK_DETAILS } from "../config/constants";
+import {
+  SUBSCRIPTION_PLANS,
+  PlanId,
+  BANK_DETAILS,
+  MAX_RECEIPT_SIZE,
+} from "../config/constants";
 import { uploadToB2 } from "../services/b2Service";
 import {
   sendSubscriptionApprovalEmail,
@@ -18,6 +23,24 @@ function getIdParam(
   const id = params.id;
   if (Array.isArray(id)) return id[0];
   return id ?? "";
+}
+
+// Parse an image sent as a base64 data URI ("data:image/jpeg;base64,....").
+// Returns null if the format is unsupported or the payload is empty.
+function parseImageDataUri(dataUri: string): {
+  mime: string;
+  buffer: Buffer;
+} | null {
+  const match = /^data:([a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(
+    dataUri.trim(),
+  );
+  if (!match) return null;
+  const mime = match[1];
+  if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(mime))
+    return null;
+  const buffer = Buffer.from(match[2], "base64");
+  if (!buffer.length) return null;
+  return { mime, buffer };
 }
 
 // ── Get Plans ──────────────────────────────────────────────────────────────────
@@ -80,7 +103,29 @@ export const uploadReceipt = async (
   const file = req.file;
   const user = req.user!;
 
-  if (!file) throw createError("Payment receipt image is required.", 400);
+  // The image can arrive in two ways:
+  //   1. As a multipart file upload (multer) — original path.
+  //   2. As base64 JSON (`image` data URI) — the mobile-friendly path that
+  //      avoids multipart/preflight issues on phones entirely.
+  let buffer: Buffer;
+  let mime: string;
+  if (file) {
+    buffer = file.buffer;
+    mime = file.mimetype;
+  } else if (typeof req.body.image === "string" && req.body.image.length) {
+    const parsed = parseImageDataUri(req.body.image);
+    if (!parsed)
+      throw createError("Invalid receipt image format (use JPEG, PNG, or WebP).", 400);
+    buffer = parsed.buffer;
+    mime = parsed.mime;
+  } else {
+    throw createError("Payment receipt image is required.", 400);
+  }
+
+  if (!buffer || buffer.length === 0)
+    throw createError("Payment receipt image is required.", 400);
+  if (buffer.length > MAX_RECEIPT_SIZE)
+    throw createError("Receipt image is too large (max 5MB).", 400);
 
   if (!mongoose.Types.ObjectId.isValid(subscriptionId)) {
     throw createError("Invalid subscription ID.", 400);
@@ -106,7 +151,7 @@ export const uploadReceipt = async (
     );
   }
 
-  const { url, key } = await uploadToB2(file.buffer, file.mimetype, "receipts");
+  const { url, key } = await uploadToB2(buffer, mime, "receipts");
 
   const receipt = await PaymentReceipt.create({
     user: user._id,

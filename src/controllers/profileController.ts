@@ -572,6 +572,7 @@ export const getBoostStatus = async (
       isBoosted: !!isBoosted,
       boostEndDate: profile.boostEndDate,
       price: BOOST_PROFILE_PRICE,
+      bankDetails: BANK_DETAILS,
     },
   });
 };

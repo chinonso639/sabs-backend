@@ -188,7 +188,25 @@ export const getMySubscription = async (
     .sort({ createdAt: -1 })
     .populate("paymentReceipt", "imageUrl status");
 
-  res.json({ success: true, data: { subscription } });
+  // The frontend dashboard reads `subscription.plan.name` and
+  // `subscription.isActive`, but the model stores flat `planId`/`planName`
+  // fields and `isActive` is a method (not serialized to JSON). So we shape
+  // the response to match what the UI expects.
+  res.json({
+    success: true,
+    data: {
+      subscription: subscription
+        ? {
+            ...subscription.toObject(),
+            isActive: subscription.isActive(),
+            plan: {
+              id: subscription.planId,
+              name: subscription.planName,
+            },
+          }
+        : null,
+    },
+  });
 };
 
 // ── Admin: Get All Subscriptions ───────────────────────────────────────────────

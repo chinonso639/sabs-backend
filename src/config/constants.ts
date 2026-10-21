@@ -2,7 +2,7 @@ export const SUBSCRIPTION_PLANS = {
   plan1: {
     id: "plan1",
     name: "Basic",
-    price: 5500,
+    price: 2950,
     currency: "NGN",
     duration: 30, // days
     profileLimit: 5,
@@ -17,7 +17,7 @@ export const SUBSCRIPTION_PLANS = {
   plan2: {
     id: "plan2",
     name: "Premium",
-    price: 10000,
+    price: 5500,
     currency: "NGN",
     duration: 30, // days
     profileLimit: -1, // unlimited

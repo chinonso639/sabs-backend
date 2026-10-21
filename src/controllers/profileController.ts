@@ -190,11 +190,12 @@ export const getProfiles = async (
   const limitNum = Math.min(50, Math.max(1, parseInt(limit as string)));
   const skip = (pageNum - 1) * limitNum;
 
-  // For default sort, boosted profiles should appear first
+  // Default sort: boosted profiles first, then by most views.
+  // The "popular" sort also keeps boosted first so paid placement is always respected.
   const sortQuery =
-    sort === "createdAt"
-      ? { isBoosted: -1, createdAt: -1 }
-      : (sortMap[sort as string] ?? { createdAt: -1 });
+    sort === "popular"
+      ? { isBoosted: -1, viewCount: -1 }
+      : { isBoosted: -1, viewCount: -1, createdAt: -1 };
 
   const [profiles, total] = await Promise.all([
     CompanionProfile.find(filter)
@@ -682,11 +683,7 @@ export const adminGetBoostRequests = async (
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .populate("user", "displayName email")
-      .populate({
-        path: "profile",
-        populate: { path: "createdBy", select: "displayName" },
-      }),
+      .populate("user", "displayName email"),
     PaymentReceipt.countDocuments(filter),
   ]);
 

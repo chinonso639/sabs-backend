@@ -163,8 +163,10 @@ export const getProfiles = async (
   } = req.query;
 
   const filter: mongoose.FilterQuery<typeof CompanionProfile> = {
-    isActive: true,
-    isEnabled: true,
+    $and: [
+      { $or: [{ isActive: true }, { isActive: { $exists: false } }] },
+      { $or: [{ isEnabled: true }, { isEnabled: { $exists: false } }] },
+    ],
   };
 
   if (search) {

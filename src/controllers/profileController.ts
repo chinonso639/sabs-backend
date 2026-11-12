@@ -179,28 +179,27 @@ export const getProfiles = async (
     if (maxAge) filter.age.$lte = parseInt(maxAge as string);
   }
 
-  const sortMap: Record<string, Record<string, number>> = {
+  const sortMap: Record<string, Record<string, 1 | -1>> = {
     createdAt: { createdAt: -1 },
-    popular: { viewCount: -1 },
-    age_asc: { age: 1 },
-    age_desc: { age: -1 },
+    popular: { viewCount: -1, createdAt: -1 },
+    age_asc: { age: 1, createdAt: -1 },
+    age_desc: { age: -1, createdAt: -1 },
   };
 
   const pageNum = Math.max(1, parseInt(page as string));
   const limitNum = Math.min(50, Math.max(1, parseInt(limit as string)));
   const skip = (pageNum - 1) * limitNum;
 
-  // Default sort: boosted profiles first, then by most views.
-  // The "popular" sort also keeps boosted first so paid placement is always respected.
-  const sortQuery =
-    sort === "popular"
-      ? { isBoosted: -1, viewCount: -1 }
-      : { isBoosted: -1, viewCount: -1, createdAt: -1 };
+  const requestedSort = typeof sort === "string" ? sort : "createdAt";
+  const sortQuery = {
+    isBoosted: -1 as const,
+    ...(sortMap[requestedSort] ?? sortMap.createdAt),
+    _id: -1 as const,
+  };
 
   const [profiles, total] = await Promise.all([
     CompanionProfile.find(filter)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .sort(sortQuery as any)
+      .sort(sortQuery)
       .skip(skip)
       .limit(limitNum)
       .select("-whatsappNumber -profileImageKey -coverImageKey -gallery.key"),

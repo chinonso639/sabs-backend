@@ -46,17 +46,22 @@ export const sendSubscriptionApprovalEmail = async (
   email: string,
   name: string,
   planName: string,
+  startDate: Date,
 ): Promise<void> => {
+  const startsLater = startDate > new Date();
+  const startLabel = startDate.toLocaleDateString();
   await transporter.sendMail({
     from: `"${BRAND}" <${FROM}>`,
     to: email,
-    subject: `Your ${BRAND} subscription is now active!`,
+    subject: startsLater
+      ? `Your ${BRAND} renewal has been scheduled`
+      : `Your ${BRAND} subscription is now active!`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px;">
-        <h2 style="color:#e11d48;">🎉 Subscription Approved!</h2>
+        <h2 style="color:#e11d48;">🎉 ${startsLater ? "Renewal Scheduled!" : "Subscription Approved!"}</h2>
         <p>Hi ${name},</p>
-        <p>Your <strong>${planName}</strong> subscription has been approved and is now active.</p>
-        <p>You can now access companion contact information as per your plan.</p>
+        <p>Your <strong>${planName}</strong> subscription has been approved${startsLater ? ` and will begin on ${startLabel}.` : " and is now active."}</p>
+        <p>${startsLater ? "Your current membership remains active until then." : "You can now access companion contact information as per your plan."}</p>
         <a href="${process.env.FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e11d48;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
           Browse Profiles
         </a>

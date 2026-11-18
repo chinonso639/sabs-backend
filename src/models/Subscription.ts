@@ -7,6 +7,7 @@ export interface ISubscription extends Document {
   price: number;
   currency: string;
   status: "pending" | "active" | "expired" | "cancelled" | "rejected";
+  renewalOf: mongoose.Types.ObjectId | null;
   startDate: Date | null;
   endDate: Date | null;
   profilesUnlocked: mongoose.Types.ObjectId[]; // for plan1 tracking
@@ -33,6 +34,11 @@ const subscriptionSchema = new Schema<ISubscription>(
       enum: ["pending", "active", "expired", "cancelled", "rejected"],
       default: "pending",
     },
+    renewalOf: {
+      type: Schema.Types.ObjectId,
+      ref: "Subscription",
+      default: null,
+    },
     startDate: { type: Date, default: null },
     endDate: { type: Date, default: null },
     profilesUnlocked: [
@@ -56,8 +62,9 @@ subscriptionSchema.index({ status: 1 });
 
 subscriptionSchema.methods.isActive = function (): boolean {
   if (this.status !== "active") return false;
-  if (!this.endDate) return false;
-  return new Date() < new Date(this.endDate);
+  const now = new Date();
+  if (!this.startDate || !this.endDate) return false;
+  return new Date(this.startDate) <= now && now < new Date(this.endDate);
 };
 
 subscriptionSchema.methods.canAccessProfile = function (

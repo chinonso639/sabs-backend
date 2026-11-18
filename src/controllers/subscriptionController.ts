@@ -66,16 +66,24 @@ export const createSubscription = async (
     throw createError("Invalid plan selected.", 400);
   }
 
-  // Check for existing pending or active subscription
-  const existing = await Subscription.findOne({
+  const now = new Date();
+  const pendingSubscription = await Subscription.findOne({
     user: user._id,
-    status: { $in: ["pending", "active"] },
-    endDate: { $gt: new Date() },
+    status: "pending",
   });
 
-  if (existing?.status === "active") {
-    throw createError("You already have an active subscription.", 409);
+  if (pendingSubscription) {
+    throw createError(
+      "You already have a subscription waiting for payment approval.",
+      409,
+    );
   }
+
+  const currentSubscription = await Subscription.findOne({
+    user: user._id,
+    status: "active",
+    endDate: { $gt: now },
+  }).sort({ endDate: -1 });
 
   const plan = SUBSCRIPTION_PLANS[planId as PlanId];
   const subscription = await Subscription.create({
@@ -86,6 +94,7 @@ export const createSubscription = async (
     currency: plan.currency,
     profileLimit: plan.profileLimit,
     status: "pending",
+    renewalOf: currentSubscription?._id ?? null,
   });
 
   res.status(201).json({
@@ -181,12 +190,39 @@ export const getMySubscription = async (
 ): Promise<void> => {
   const user = req.user!;
 
-  const subscription = await Subscription.findOne({
+  const now = new Date();
+  const activeSubscription = await Subscription.findOne({
     user: user._id,
-    status: { $in: ["pending", "active"] },
+    status: "active",
+    startDate: { $lte: now },
+    endDate: { $gt: now },
+  })
+    .sort({ endDate: -1 })
+    .populate("paymentReceipt", "imageUrl status");
+  const pendingSubscription = await Subscription.findOne({
+    user: user._id,
+    status: "pending",
   })
     .sort({ createdAt: -1 })
     .populate("paymentReceipt", "imageUrl status");
+  const scheduledSubscription = await Subscription.findOne({
+    user: user._id,
+    status: "active",
+    startDate: { $gt: now },
+    endDate: { $gt: now },
+  })
+    .sort({ startDate: 1 })
+    .populate("paymentReceipt", "imageUrl status");
+  const latestSubscription =
+    activeSubscription ||
+    pendingSubscription ||
+    scheduledSubscription ||
+    (await Subscription.findOne({
+      user: user._id,
+      status: "active",
+    })
+      .sort({ endDate: -1 })
+      .populate("paymentReceipt", "imageUrl status"));
 
   // The frontend dashboard reads `subscription.plan.name` and
   // `subscription.isActive`, but the model stores flat `planId`/`planName`
@@ -195,16 +231,31 @@ export const getMySubscription = async (
   res.json({
     success: true,
     data: {
-      subscription: subscription
+      subscription: latestSubscription
         ? {
-            ...subscription.toObject(),
-            isActive: subscription.isActive(),
+            ...latestSubscription.toObject(),
+            isActive: latestSubscription.isActive(),
+            isUpcoming:
+              latestSubscription.status === "active" &&
+              Boolean(
+                latestSubscription.startDate &&
+                  latestSubscription.startDate > now,
+              ),
             plan: {
-              id: subscription.planId,
-              name: subscription.planName,
+              id: latestSubscription.planId,
+              name: latestSubscription.planName,
             },
           }
         : null,
+      pendingRenewal:
+        activeSubscription &&
+        pendingSubscription?.renewalOf?.toString() ===
+          activeSubscription._id.toString()
+          ? {
+              _id: pendingSubscription._id,
+              planName: pendingSubscription.planName,
+            }
+          : null,
     },
   });
 };
@@ -260,10 +311,22 @@ export const adminApproveSubscription = async (
     throw createError("Subscription is already active.", 400);
 
   const now = new Date();
-  const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const previousSubscription = subscription.renewalOf
+    ? await Subscription.findById(subscription.renewalOf)
+    : null;
+  const startDate =
+    previousSubscription?.status === "active" &&
+    previousSubscription.endDate &&
+    previousSubscription.endDate > now
+      ? previousSubscription.endDate
+      : now;
+  const endDate = new Date(
+    startDate.getTime() +
+      SUBSCRIPTION_PLANS[subscription.planId].duration * 24 * 60 * 60 * 1000,
+  );
 
   subscription.status = "active";
-  subscription.startDate = now;
+  subscription.startDate = startDate;
   subscription.endDate = endDate;
   subscription.approvedBy = admin._id as unknown as mongoose.Types.ObjectId;
   subscription.approvedAt = now;
@@ -284,6 +347,7 @@ export const adminApproveSubscription = async (
       populatedUser.email,
       populatedUser.displayName,
       subscription.planName,
+      subscription.startDate!,
     ).catch(() => {});
   }
 

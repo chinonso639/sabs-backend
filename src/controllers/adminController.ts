@@ -40,7 +40,11 @@ export const getDashboardStats = async (
     CompanionProfile.countDocuments(),
     CompanionProfile.countDocuments({ isActive: true, isEnabled: true }),
     PaymentReceipt.countDocuments({ status: "pending" }),
-    Subscription.countDocuments({ status: "active", endDate: { $gt: now } }),
+    Subscription.countDocuments({
+      status: "active",
+      startDate: { $lte: now },
+      endDate: { $gt: now },
+    }),
     Subscription.aggregate([
       { $match: { status: "active" } },
       { $group: { _id: null, total: { $sum: "$price" } } },

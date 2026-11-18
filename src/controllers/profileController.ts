@@ -249,6 +249,7 @@ export const getProfile = async (
     const sub = await Subscription.findOne({
       user: req.user._id,
       status: "active",
+      startDate: { $lte: new Date() },
       endDate: { $gt: new Date() },
     });
 

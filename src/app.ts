@@ -11,6 +11,7 @@ import profileRoutes from "./routes/profiles";
 import subscriptionRoutes from "./routes/subscriptions";
 import adminRoutes from "./routes/admin";
 import reportRoutes from "./routes/reports";
+import notificationRoutes from "./routes/notifications";
 import { errorHandler, notFound } from "./middleware/errorHandler";
 import { generalLimiter, mediaLimiter } from "./middleware/rateLimiter";
 import { getB2Client, getB2Bucket, getB2PublicUrlBase } from "./config/b2";
@@ -125,6 +126,7 @@ app.use("/api/profiles", profileRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ── 404 & Error Handler ────────────────────────────────────────────────────────
 app.use(notFound);

@@ -6,6 +6,12 @@ import {
   toggleUserStatus,
   createAdmin,
 } from "../controllers/adminController";
+import {
+  getPushAudienceCounts,
+  getPushCampaigns,
+  sendTestPush,
+  sendPushCampaign,
+} from "../controllers/notificationController";
 import { adminProtect } from "../middleware/adminAuth";
 import { validate } from "../middleware/validate";
 
@@ -16,6 +22,30 @@ router.use(adminProtect);
 router.get("/dashboard", getDashboardStats);
 router.get("/users", getUsers);
 router.patch("/users/:id/status", validate, toggleUserStatus);
+router.get("/push/audiences", getPushAudienceCounts);
+router.get("/push/campaigns", getPushCampaigns);
+router.post(
+  "/push/test",
+  [
+    body("title").trim().notEmpty().isLength({ max: 80 }),
+    body("message").trim().notEmpty().isLength({ max: 240 }),
+    body("url").isString().isLength({ min: 1, max: 500 }),
+    body("email").isEmail().normalizeEmail(),
+  ],
+  validate,
+  sendTestPush,
+);
+router.post(
+  "/push/campaigns",
+  [
+    body("title").trim().notEmpty().isLength({ max: 80 }),
+    body("message").trim().notEmpty().isLength({ max: 240 }),
+    body("url").isString().isLength({ min: 1, max: 500 }),
+    body("audience").isIn(["all", "creators", "members"]),
+  ],
+  validate,
+  sendPushCampaign,
+);
 
 router.post(
   "/create-admin",

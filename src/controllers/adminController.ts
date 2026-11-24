@@ -6,6 +6,7 @@ import { CompanionProfile } from "../models/CompanionProfile";
 import { Subscription } from "../models/Subscription";
 import { PaymentReceipt } from "../models/PaymentReceipt";
 import { Report } from "../models/Report";
+import { PushSubscription } from "../models/PushSubscription";
 import { createError } from "../middleware/errorHandler";
 
 // Helper to safely get string id from params
@@ -35,6 +36,7 @@ export const getDashboardStats = async (
     monthlyRevenue,
     pendingReports,
     recentUsers,
+    pushEnabledUserIds,
   ] = await Promise.all([
     User.countDocuments(),
     CompanionProfile.countDocuments(),
@@ -58,6 +60,14 @@ export const getDashboardStats = async (
       .sort({ createdAt: -1 })
       .limit(5)
       .select("displayName email createdAt role"),
+    PushSubscription.distinct("user"),
+  ]);
+  const [pwaInstallUsers, pwaPushEnabledUsers] = await Promise.all([
+    User.countDocuments({ pwaInstalledAt: { $type: "date" } }),
+    User.countDocuments({
+      _id: { $in: pushEnabledUserIds },
+      pwaInstalledAt: { $type: "date" },
+    }),
   ]);
 
   res.json({
@@ -72,6 +82,9 @@ export const getDashboardStats = async (
         totalRevenue: totalRevenue[0]?.total ?? 0,
         monthlyRevenue: monthlyRevenue[0]?.total ?? 0,
         pendingReports,
+        pwaInstallUsers,
+        pushEnabledUsers: pushEnabledUserIds.length,
+        pwaPushEnabledUsers,
       },
       recentUsers,
     },

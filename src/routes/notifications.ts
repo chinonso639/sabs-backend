@@ -2,6 +2,8 @@ import { Router } from "express";
 import { body } from "express-validator";
 import {
   getPushStatus,
+  getAccountNotifications,
+  recordPWAInstallation,
   removePushSubscription,
   savePushSubscription,
 } from "../controllers/notificationController";
@@ -10,8 +12,10 @@ import { validate } from "../middleware/validate";
 
 const router = Router();
 
-router.use(protect);
 router.get("/push/status", getPushStatus);
+router.use(protect);
+router.get("/in-app", getAccountNotifications);
+router.post("/pwa/installation", recordPWAInstallation);
 router.post(
   "/push/subscription",
   [

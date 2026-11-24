@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { User } from "../models/User";
 import { PushSubscription } from "../models/PushSubscription";
 import { PushCampaign, PushAudience } from "../models/PushCampaign";
+import { Subscription } from "../models/Subscription";
+import { CompanionProfile } from "../models/CompanionProfile";
 import { createError } from "../middleware/errorHandler";
 import {
   getAudienceSubscriptions,
@@ -11,6 +13,23 @@ import {
 } from "../services/pushService";
 
 const AUDIENCES: PushAudience[] = ["all", "creators", "members"];
+
+interface AccountNotification {
+  id: string;
+  type: "payment" | "boost";
+  status: "pending" | "approved" | "rejected";
+  title: string;
+  message: string;
+  createdAt: Date;
+  href: string;
+}
+
+interface NotificationReceipt {
+  status: "pending" | "approved" | "rejected";
+  createdAt: Date;
+  reviewedAt: Date | null;
+  rejectionReason: string;
+}
 
 function validateNotificationUrl(url: string): void {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -76,6 +95,134 @@ export const getPushStatus = async (
     success: true,
     data: { enabled: Boolean(publicKey), publicKey },
   });
+};
+
+export const recordPWAInstallation = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  await User.updateOne(
+    { _id: req.user!._id, pwaInstalledAt: null },
+    { $set: { pwaInstalledAt: new Date() } },
+  );
+  res.json({ success: true, message: "PWA installation recorded." });
+};
+
+export const getAccountNotifications = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const [subscriptions, profiles] = await Promise.all([
+    Subscription.find({ user: req.user!._id })
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .populate<{ paymentReceipt: NotificationReceipt | null }>(
+        "paymentReceipt",
+        "status createdAt reviewedAt rejectionReason",
+      )
+      .lean(),
+    CompanionProfile.find({
+      createdBy: req.user!._id,
+      boostPaymentReceipt: { $ne: null },
+    })
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .populate<{ boostPaymentReceipt: NotificationReceipt | null }>(
+        "boostPaymentReceipt",
+        "status createdAt reviewedAt rejectionReason",
+      )
+      .lean(),
+  ]);
+
+  const notifications: AccountNotification[] = [];
+
+  for (const subscription of subscriptions) {
+    const receipt = subscription.paymentReceipt;
+    if (subscription.status === "pending") {
+      notifications.push({
+        id: `payment-${subscription._id}`,
+        type: "payment",
+        status: "pending",
+        title: receipt?.status === "pending"
+          ? "Payment awaiting approval"
+          : "Complete your subscription payment",
+        message: receipt?.status === "pending"
+          ? `Your ${subscription.planName} payment receipt is being reviewed.`
+          : `Your ${subscription.planName} subscription is waiting for payment and receipt upload.`,
+        createdAt:
+          receipt?.reviewedAt ?? receipt?.createdAt ?? subscription.updatedAt,
+        href: `/payment?plan=${subscription.planId}&sub=${subscription._id}`,
+      });
+    } else if (subscription.status === "active") {
+      notifications.push({
+        id: `payment-${subscription._id}`,
+        type: "payment",
+        status: "approved",
+        title: "Payment approved",
+        message: `Your ${subscription.planName} subscription payment was approved.`,
+        createdAt: subscription.approvedAt ?? subscription.updatedAt,
+        href: "/dashboard",
+      });
+    } else if (subscription.status === "rejected") {
+      notifications.push({
+        id: `payment-${subscription._id}`,
+        type: "payment",
+        status: "rejected",
+        title: "Payment not approved",
+        message:
+          receipt?.rejectionReason ||
+          subscription.rejectedReason ||
+          "Your payment could not be verified. Please review and try again.",
+        createdAt: receipt?.createdAt ?? subscription.updatedAt,
+        href: `/subscribe?plan=${subscription.planId}`,
+      });
+    }
+  }
+
+  for (const profile of profiles) {
+    const receipt = profile.boostPaymentReceipt;
+    if (!receipt) continue;
+
+    if (receipt.status === "pending") {
+      notifications.push({
+        id: `boost-${profile._id}-${receipt.createdAt.getTime()}`,
+        type: "boost",
+        status: "pending",
+        title: "Boost payment awaiting approval",
+        message: `Your payment to boost ${profile.displayName} is being reviewed.`,
+        createdAt: receipt.reviewedAt ?? receipt.createdAt,
+        href: "/creator/dashboard",
+      });
+    } else if (receipt.status === "approved") {
+      notifications.push({
+        id: `boost-${profile._id}-${receipt.createdAt.getTime()}`,
+        type: "boost",
+        status: "approved",
+        title: "Profile boost approved",
+        message: `Your boost payment was approved. ${profile.displayName} is featured for the boost period.`,
+        createdAt: receipt.reviewedAt ?? receipt.createdAt,
+        href: "/creator/dashboard",
+      });
+    } else {
+      notifications.push({
+        id: `boost-${profile._id}-${receipt.createdAt.getTime()}`,
+        type: "boost",
+        status: "rejected",
+        title: "Boost payment not approved",
+        message:
+          receipt.rejectionReason ||
+          "Your boost payment could not be verified. Please review and try again.",
+        createdAt: receipt.reviewedAt ?? receipt.createdAt,
+        href: "/creator/dashboard",
+      });
+    }
+  }
+
+  notifications.sort(
+    (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+  );
+
+  res.json({ success: true, data: { notifications } });
 };
 
 export const savePushSubscription = async (

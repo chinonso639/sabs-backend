@@ -10,6 +10,7 @@ export interface IUser extends Document {
   location: string;
   role: "user" | "creator";
   isEmailVerified: boolean;
+  pwaInstalledAt: Date | null;
   emailVerificationToken: string | null;
   emailVerificationExpiry: Date | null;
   passwordResetToken: string | null;
@@ -36,6 +37,7 @@ const userSchema = new Schema<IUser>(
     location: { type: String, required: true, trim: true },
     role: { type: String, enum: ["user", "creator"], default: "user" },
     isEmailVerified: { type: Boolean, default: false },
+    pwaInstalledAt: { type: Date, default: null },
     emailVerificationToken: { type: String, default: null, select: false },
     emailVerificationExpiry: { type: Date, default: null, select: false },
     passwordResetToken: { type: String, default: null, select: false },

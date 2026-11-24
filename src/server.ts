@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "./config/loadEnv";
 import app from "./app";
 import { connectDB } from "./config/database";
 import { initB2 } from "./config/b2";
